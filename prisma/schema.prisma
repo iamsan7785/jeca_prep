@@ -1,0 +1,317 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+}
+
+enum SourceType {
+  PYQ
+  MOCK
+  PRACTICE
+  PREDICTED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+model Role {
+  id String @id @default(cuid())
+  name String @unique
+  users User[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  roleId String
+  role Role @relation(fields: [roleId], references: [id])
+  attempts Attempt[]
+  examAttempts ExamAttempt[]
+  bookmarks Bookmark[]
+  mistakes Mistake[]
+  questionEditHistory QuestionEditHistory[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subject {
+  id String @id @default(cuid())
+  name String @unique
+  slug String @unique
+  active Boolean @default(true)
+  topics Topic[]
+  questions Question[]
+  blueprints TestBlueprint[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Topic {
+  id String @id @default(cuid())
+  name String
+  slug String
+  subjectId String
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions Question[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([subjectId, slug])
+}
+
+model Question {
+  id String @id @default(cuid())
+  questionText String
+  questionType QuestionType
+  category String
+  subjectId String
+  subject Subject @relation(fields: [subjectId], references: [id])
+  topicId String?
+  topic Topic? @relation(fields: [topicId], references: [id])
+  difficulty Difficulty
+  options Json
+  correctAnswers Json
+  explanation String
+  marks Decimal @db.Decimal(6, 2)
+  negativeMarks Decimal @db.Decimal(6, 2)
+  year Int?
+  examYear Int?
+  paperSection String?
+  originalQuestionNumber String?
+  source String
+  sourceType SourceType
+  imageUrl String?
+  tags String[]
+  published Boolean @default(false)
+  answerStatus String @default("UNVERIFIED")
+  mockQuestions MockQuestion[]
+  attemptAnswers AttemptAnswer[]
+  bookmarks Bookmark[]
+  mistakes Mistake[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  editHistory QuestionEditHistory[]
+  @@index([year])
+  @@index([subjectId])
+  @@index([topicId])
+  @@index([sourceType])
+}
+
+model QuestionEditHistory {
+  id String @id @default(cuid())
+  questionId String?
+  pyqQuestionId String?
+  adminUserId String
+  previousData Json
+  newData Json
+  changedAt DateTime @default(now())
+  question Question? @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  pyqQuestion PyqQuestion? @relation(fields: [pyqQuestionId], references: [id], onDelete: Cascade)
+  adminUser User @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+  @@index([questionId, changedAt])
+  @@index([pyqQuestionId, changedAt])
+  @@index([adminUserId])
+}
+
+model MockTest {
+  id String @id @default(cuid())
+  title String
+  description String?
+  durationMinutes Int
+  questionCount Int
+  markingConfig Json
+  published Boolean @default(false)
+  questions MockQuestion[]
+  attempts Attempt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MockQuestion {
+  id String @id @default(cuid())
+  mockTestId String
+  questionId String
+  position Int
+  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  @@unique([mockTestId, questionId])
+  @@unique([mockTestId, position])
+}
+
+model Attempt {
+  id String @id @default(cuid())
+  userId String
+  mockTestId String?
+  customConfig Json?
+  status AttemptStatus @default(IN_PROGRESS)
+  startedAt DateTime
+  endAt DateTime
+  submittedAt DateTime?
+  score Decimal? @db.Decimal(8, 2)
+  maximumScore Decimal? @db.Decimal(8, 2)
+  result Json?
+  suspiciousEvents Json?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTest MockTest? @relation(fields: [mockTestId], references: [id])
+  answers AttemptAnswer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
+  @@index([status])
+}
+
+model AttemptAnswer {
+  id String @id @default(cuid())
+  attemptId String
+  questionId String
+  selectedOptionIds String[]
+  markedForReview Boolean @default(false)
+  timeSpentSeconds Int @default(0)
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([attemptId, questionId])
+}
+
+model Bookmark {
+  id String @id @default(cuid())
+  userId String
+  questionId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([userId, questionId])
+}
+
+model Mistake {
+  id String @id @default(cuid())
+  userId String
+  questionId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([userId, questionId])
+}
+
+model TestBlueprint {
+  id String @id @default(cuid())
+  name String
+  subjectId String
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questionCount Int
+  singleCount Int
+  multipleCount Int
+  difficultyRules Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([name, subjectId])
+}
+
+// PYQ models: previous-year question papers and questions
+model PyqPaper {
+  id String @id @default(cuid())
+  year Int
+  title String
+  paperType String? // e.g. "Mathematics", "Aptitude" or null
+  source String
+  sourceUrl String
+  durationMinutes Int
+  totalQuestions Int?
+  totalMarks Decimal? @db.Decimal(8,2)
+  isPublished Boolean @default(false)
+  config Json? // exam pattern / category splits
+  questions PyqQuestion[]
+  attempts ExamAttempt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([year, title, paperType])
+}
+
+model PyqQuestion {
+  id String @id @default(cuid())
+  paperId String
+  paper PyqPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  questionNumber Int
+  questionText String
+  optionA String?
+  optionB String?
+  optionC String?
+  optionD String?
+  correctOption String? // Legacy single-choice answer for Category-1; may also be the first answer for Category-2
+  correctOptions String[] @default([]) // Full set of correct answers for multi-answer Category-2 questions
+  marks Decimal @db.Decimal(6,2)
+  negativeMarks Decimal @db.Decimal(6,2)
+  category String?
+  subjectId String? 
+  source String?
+  answerStatus String? @default("UNVERIFIED")
+  answerSource String?
+  answerConfidence Decimal? @db.Decimal(5,4)
+  answerExplanation String?
+  verifiedAt DateTime?
+  officialVerifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  editHistory QuestionEditHistory[]
+  @@unique([paperId, questionNumber])
+  @@index([paperId])
+}
+
+// Persistent exam attempts for PYQ and mixed exam records
+model ExamAttempt {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String // "MOCK" | "PYQ"
+  mockConfig Json?
+  pyqPaperId String?
+  pyqPaper PyqPaper? @relation(fields: [pyqPaperId], references: [id])
+  startedAt DateTime
+  expiresAt DateTime
+  submittedAt DateTime?
+  status String
+  totalQuestions Int
+  totalMarks Decimal? @db.Decimal(8,2)
+  result Json?
+  suspiciousEvents Json?
+  answers ExamAttemptAnswer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExamAttemptAnswer {
+  id String @id @default(cuid())
+  attemptId String
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionRef String // PyqQuestion.id or Question.id
+  questionType String?
+  selectedOption String?
+  selectedOptionIds String[] @default([])
+  markedForReview Boolean @default(false)
+  timeSpentSeconds Int @default(0)
+  isCorrect Boolean?
+  marksObtained Decimal? @db.Decimal(6,2)
+  answeredAt DateTime @default(now())
+  @@index([attemptId])
+  @@unique([attemptId, questionRef])
+}

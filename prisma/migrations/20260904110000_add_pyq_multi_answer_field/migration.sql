@@ -1,0 +1,2 @@
+ALTER TABLE "PyqQuestion"
+  ADD COLUMN IF NOT EXISTS "correctOptions" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

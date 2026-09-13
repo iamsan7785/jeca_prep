@@ -1,0 +1,50 @@
+import { Check, ChevronLeft, ChevronRight, Edit3, Filter, Save, Search, ShieldCheck, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Button, Card, EmptyState, SourceBadge } from "../components/ui";
+import { api, type AdminQuestion } from "../services/api";
+import { useAuth } from "../store/AuthContext";
+
+const pageSize = 12;
+const emptyFilters = { search: "", sourceType: "", year: "", subject: "", difficulty: "", category: "" };
+
+function QuestionEditor({ question, onClose, onSaved }: { question: AdminQuestion; onClose: () => void; onSaved: (question: AdminQuestion) => void }) {
+  const { session } = useAuth();
+  const [form, setForm] = useState<AdminQuestion>(question);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const set = (key: keyof AdminQuestion, value: unknown) => setForm((previous) => ({ ...previous, [key]: value }));
+  const setOption = (id: string, text: string) => set("options", form.options.map((option) => option.id === id ? { ...option, text } : option));
+  const toggleAnswer = (id: string) => set("correctAnswers", form.questionType === "SINGLE" ? [id] : form.correctAnswers.includes(id) ? form.correctAnswers.filter((answer) => answer !== id) : [...form.correctAnswers, id]);
+  const save = async () => {
+    if (!session?.token) return;
+    setSaving(true); setMessage("");
+    try {
+      const response = await api.updateAdminQuestion(question.id, { ...form, kind: question.kind }, session.token);
+      onSaved(response.question); setMessage("Saved successfully");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the question."); } finally { setSaving(false); }
+  };
+  return <Card className="admin-editor"><div className="admin-editor-header"><div><span className="eyebrow">{question.kind === "PYQ" ? "Official PYQ" : "Question bank"}</span><h2>Edit question</h2><p>{question.id}{question.year ? ` · ${question.year}` : ""}{question.originalQuestionNumber ? ` · Question ${question.originalQuestionNumber}` : ""}</p></div><button className="icon-button" title="Close editor" onClick={onClose}><X size={18} /></button></div><label className="admin-field admin-field-wide">Question<textarea value={form.questionText} onChange={(event) => set("questionText", event.target.value)} /></label><div className="admin-options">{form.options.map((option) => <label className="admin-field" key={option.id}>Option {option.id}<input value={option.text} onChange={(event) => setOption(option.id, event.target.value)} /></label>)}</div><div className="admin-form-grid"><label className="admin-field">Correct answer<div className="answer-picker">{form.options.map((option) => <button type="button" className={form.correctAnswers.includes(option.id) ? "answer-choice selected" : "answer-choice"} key={option.id} onClick={() => toggleAnswer(option.id)}>{form.correctAnswers.includes(option.id) && <Check size={14} />}{option.id}</button>)}</div></label><label className="admin-field">Answer status<select value={form.answerStatus} onChange={(event) => set("answerStatus", event.target.value)}><option>UNVERIFIED</option><option>AI_CHECKED</option><option>ADMIN_VERIFIED</option>{question.kind === "PYQ" && <option>OFFICIAL_KEY_VERIFIED</option>}</select></label><label className="admin-field">Question type<select value={form.questionType} onChange={(event) => set("questionType", event.target.value)}><option>SINGLE</option><option>MULTIPLE</option></select></label><label className="admin-field">Difficulty<select value={form.difficulty} onChange={(event) => set("difficulty", event.target.value)}><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label className="admin-field">Subject<input value={form.subject} onChange={(event) => set("subject", event.target.value)} /></label><label className="admin-field">Topic<input value={form.topic} onChange={(event) => set("topic", event.target.value)} /></label><label className="admin-field">Category<input value={form.category} onChange={(event) => set("category", event.target.value)} /></label><label className="admin-field">Marks<input type="number" min="0.01" step="0.25" value={form.marks} onChange={(event) => set("marks", Number(event.target.value))} /></label><label className="admin-field">Negative marks<input type="number" min="0" step="0.25" value={form.negativeMarks} onChange={(event) => set("negativeMarks", Number(event.target.value))} /></label></div><label className="admin-field admin-field-wide">Explanation<textarea value={form.explanation} onChange={(event) => set("explanation", event.target.value)} /></label>{question.kind === "PYQ" && <div className="admin-provenance"><ShieldCheck size={17} /><span>Paper identity is preserved: {question.paperTitle} · {question.year} · {question.sourceUrl}</span></div>}<div className="admin-editor-actions"><span className={message === "Saved successfully" ? "save-message success" : "save-message"}>{message}</span><Button variant="secondary" onClick={onClose}><X size={16} /> Cancel</Button><Button onClick={() => void save()} disabled={saving}><Save size={16} />{saving ? "Saving…" : "Save changes"}</Button></div></Card>;
+}
+
+export function AdminQuestionsPage() {
+  const { session } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => ({ ...emptyFilters, sourceType: searchParams.get("sourceType") ?? "", year: searchParams.get("year") ?? "" }));
+  const mockSet = searchParams.get("mockSet") ?? "";
+  const [items, setItems] = useState<AdminQuestion[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState<AdminQuestion | null>(null);
+  useEffect(() => {
+    if (!session?.token) return;
+    setLoading(true); setError("");
+    void api.adminQuestions(session.token, { ...filters, ...(mockSet ? { mockSet } : {}), page, limit: pageSize }).then((payload) => { setItems(payload.items); setTotal(payload.total); }).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load questions.")).finally(() => setLoading(false));
+  }, [session?.token, filters, page, mockSet]);
+  const updateFilter = (key: keyof typeof filters, value: string) => { setPage(1); setFilters((previous) => ({ ...previous, [key]: value })); };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (!session || session.user.role !== "ADMIN") return <div className="page"><EmptyState title="Administrator access required" text="This page is restricted to authorized administrators." /></div>;
+  return <div className="page"><section className="page-heading"><div><span className="eyebrow">Admin · Questions</span><h1>{mockSet ? `Mock Test ${mockSet.replace("full-mock-", "")}` : filters.sourceType === "PYQ" ? `PYQ ${filters.year || "papers"}` : "Question management."}</h1><p>Edit persisted practice, mock, and PYQ records without changing the exam experience.</p></div><span className="data-count">{total} records</span></section><Card className="admin-filters"><label className="search-field"><Search size={16} /><input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search question or ID" /></label><label className="filter-select"><Filter size={15} /><select value={filters.sourceType} onChange={(event) => updateFilter("sourceType", event.target.value)}><option value="">All sources</option><option value="PRACTICE">Practice</option><option value="MOCK">Mock</option><option value="PYQ">PYQ</option></select></label><label className="filter-select"><select value={filters.difficulty} onChange={(event) => updateFilter("difficulty", event.target.value)}><option value="">All difficulty</option><option value="EASY">Easy</option><option value="MEDIUM">Medium</option><option value="HARD">Hard</option></select></label><input className="admin-filter-input" value={filters.year} onChange={(event) => updateFilter("year", event.target.value)} placeholder="PYQ year" /><input className="admin-filter-input" value={filters.subject} onChange={(event) => updateFilter("subject", event.target.value)} placeholder="Subject" /></Card>{error && <div className="form-error">{error}</div>}{loading ? <div className="route-loading admin-loading">Loading question records…</div> : items.length ? <div className="admin-question-list">{items.map((item) => <Card className="admin-question-row" key={`${item.kind}-${item.id}`}><div className="admin-question-number">Question {item.questionNumber ?? "—"}</div><div className="admin-question-main"><div className="preview-meta"><SourceBadge sourceType={item.sourceType} year={item.year ?? undefined} /><span className="badge difficulty-medium">{item.answerStatus}</span><span>{item.id}</span></div><h3>{item.questionText.length > 150 ? `${item.questionText.slice(0, 150)}…` : item.questionText}</h3><p>{item.subject} · {item.topic} · {item.category} · Updated {new Date(item.updatedAt).toLocaleString()}</p></div><Button variant="secondary" onClick={() => setEditing(item)}><Edit3 size={15} /> Edit</Button></Card>)}</div> : <EmptyState title="No matching questions" text="Adjust the filters to find another record." />}<div className="admin-pagination"><span>Page {page} of {totalPages}</span><div><Button variant="quiet" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1}><ChevronLeft size={16} /> Previous</Button><Button variant="quiet" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages}>Next <ChevronRight size={16} /></Button></div></div>{editing && <QuestionEditor question={editing} onClose={() => setEditing(null)} onSaved={(question) => { setItems((current) => current.map((item) => item.id === question.id && item.kind === question.kind ? question : item)); setEditing(question); }} />}</div>;
+}

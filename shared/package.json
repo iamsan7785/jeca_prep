@@ -1,0 +1,10 @@
+{
+  "name": "@jeca/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./questions": "./questions.ts",
+    "./types": "./types.ts"
+  }
+}

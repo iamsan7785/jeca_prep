@@ -1,0 +1,1 @@
+ALTER TABLE "ExamAttempt" ADD COLUMN IF NOT EXISTS "suspiciousEvents" JSONB;

@@ -1,0 +1,37 @@
+{
+  "year": 2026,
+  "title": "JECA TEST SAMPLE 2026 (TEST DATA)",
+  "paperType": "TEST",
+  "source": "TEST",
+  "sourceUrl": "https://example.test/local",
+  "durationMinutes": 120,
+  "totalQuestions": 2,
+  "totalMarks": 2,
+  "config": { "notes": "TEST DATA - DO NOT TREAT AS REAL PYQ" },
+  "questions": [
+    {
+      "questionNumber": 1,
+      "questionText": "Test question A?",
+      "optionA": "Option 1",
+      "optionB": "Option 2",
+      "optionC": "Option 3",
+      "optionD": "Option 4",
+      "correctOption": null,
+      "marks": 1,
+      "negativeMarks": 0.25,
+      "category": "Test"
+    },
+    {
+      "questionNumber": 2,
+      "questionText": "Test question B?",
+      "optionA": "Option A",
+      "optionB": "Option B",
+      "optionC": "Option C",
+      "optionD": "Option D",
+      "correctOption": null,
+      "marks": 1,
+      "negativeMarks": 0.25,
+      "category": "Test"
+    }
+  ]
+}
